@@ -9,38 +9,38 @@
 .text
 .global _start
 
-    # We use:
+    #; We use:
     #
-    # * rbx as an instruction pointer
-    # * rsi as a data pointer this way, syscalls will read/write to/from the vm memory
+    #; * rbx as an instruction pointer
+    #; * rsi as a data pointer this way, syscalls will read/write to/from the vm memory
     #
-    # And for now, don't protect memory (up to the bf programmer to ensure safety)
+    #; And for now, don't protect memory (up to the bf programmer to ensure safety)
 
 _start:
 
-    # If > 1 arg, treat as number of bytes for vm
-    mov rax, [rsp] # number of commandline args
-    cmp rax, 1     # 1 arg -> just name of program
+    #; If > 1 arg, treat as number of bytes for vm
+    mov rax, [rsp] #; number of commandline args
+    cmp rax, 1     #; 1 arg -> just name of program
     je default_vm_mem
 
     read_vm_mem:
 
-    # Read and setup vm
+    #; Read and setup vm
 
     jmp alloc_vm
 
     default_vm_mem:
     mov rsi, [default_mem]
 
-    # Assume n bytes is in rsi
-    # allocate memory, and put memory pointer in rsi
+    #; Assume n bytes is in rsi
+    #; allocate memory, and put memory pointer in rsi
     alloc_vm:
-    mov rax, 9                      # mmap syscall no
-    xor rdi, rdi                    # addr = null
-    mov rdx, 0b111                  # prot = rwx
-    mov r10, MAP_PRIVATE | MAP_ANON # flags = map_private | map_anon
-    mov r8,  -1                     # fd = -1
-    mov r9,  0                      # off = 0
+    mov rax, 9                      #; mmap syscall no
+    xor rdi, rdi                    #; addr = null
+    mov rdx, 0b111                  #; prot = rwx
+    mov r10, MAP_PRIVATE | MAP_ANON #; flags = map_private | map_anon
+    mov r8,  -1                     #; fd = -1
+    mov r9,  0                      #; off = 0
     syscall
 
     cmp rax, -1 #; check failure
@@ -48,8 +48,8 @@ _start:
 
     mov r8, rax #; r8 contains memory pointer to first (lowest) cell
 
-    # We will simply read the program onto the stack
-    # then, we execute by running in reverse order
+    #; We will simply read the program onto the stack
+    #; then, we execute by running in reverse order
     push 0         #; put a nul-byte at the start of the program
     lea rbx, [rsp] #; save address just above first instruction we will use
 
@@ -127,7 +127,7 @@ _start:
     cmp al, 0
     jnz main_loop
 
-    # find the matching ']'
+    #; find the matching ']'
     mov rdi, -1
     xor rcx, rcx
     call match_bracket
@@ -141,7 +141,7 @@ _start:
     cmp al, 0
     jz main_loop
 
-    # find the matching '['
+    #; find the matching '['
     mov rdi, 1
     xor rcx, rcx
     call match_bracket
@@ -156,15 +156,15 @@ _start:
     call exit
 
     case_default:
-    # mov rax, -1
-    # call exit
+    #; mov rax, -1
+    #; call exit
     jmp main_loop
 
-# Find the matching bracket
-# Given the current instruction in [rbx],
-#       the offset to move by in rdi
-#       the current bracket level in rcx
-# Bracket level increases with opening bracket
+#; Find the matching bracket
+#; Given the current instruction in [rbx],
+#;       the offset to move by in rdi
+#;       the current bracket level in rcx
+#; Bracket level increases with opening bracket
 match_bracket:
 
     mov al, [rbx]
@@ -190,14 +190,14 @@ match_bracket:
     jmp match_bracket
 
 
-# Exit with code rax
+#; Exit with code rax
 exit:
     mov rdi, rax
     mov rax, 60
     syscall
     ret
 
-# Print a char at [rsi]
+#; Print a char at [rsi]
 putch:
     enter 0, 0
     pop rdx
@@ -207,7 +207,7 @@ putch:
     leave
     ret
 
-# Print up to rdx bytes of a string from [rsi]
+#; Print up to rdx bytes of a string from [rsi]
 print_n:
     enter 0, 0
     push rax
@@ -220,7 +220,7 @@ print_n:
     leave
     ret
 
-# Get a char front stdin to [rsi]
+#; Get a char front stdin to [rsi]
 getch:
     enter 0, 0
     push rax
@@ -238,7 +238,7 @@ getch:
     leave
     ret
 
-# Get the length of the string at [rsi] to rdx
+#; Get the length of the string at [rsi] to rdx
 strlen:
     enter 0, 0
     mov rdx, 0
@@ -261,7 +261,7 @@ strlen:
     leave
     ret
 
-# Print from [rsi]
+#; Print from [rsi]
 print_null:
     enter 0, 0
     call strlen
