@@ -1,4 +1,4 @@
-#include "include/sys_headers.h"
+#include "sys_headers.h"
 
 .intel_syntax noprefix
 

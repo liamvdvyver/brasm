@@ -3,19 +3,19 @@ CFLAGS = -g -Wall -I$(INCLUDE)
 LD = ld
 BUILD = out
 INCLUDE = ./include/
-SRC = .
+SRC = src
 
 default: all
 
-all: checkdirs $(BUILD)/brasm
+all: checkdirs $(INCLUDE)/sys_headers.h brasm
 
-$(BUILD)/brasm.o: $(SRC)/br.S #$(INCLUDE)/sys_headers.h
+$(BUILD)/brasm.o: $(SRC)/br.S
 	$(CC) $(CFLAGS) -o $@ -c $^
 
 $(INCLUDE)/sys_headers.h:
 	echo "#include <sys/mman.h>" | $(CC) -E - -dM > $@
 
-$(BUILD)/brasm: $(BUILD)/brasm.o
+brasm: $(BUILD)/brasm.o
 	$(LD) -o $@ $^
 
 checkdirs: $(BUILD) $(INCLUDE)
@@ -28,3 +28,4 @@ $(INCLUDE):
 
 clean:
 	@rm -rf $(BUILD)
+	@rm -rf $(INCLUDE)
