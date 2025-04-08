@@ -53,10 +53,17 @@ _start:
     push 0         #; put a nul-byte at the start of the program
     lea rbx, [rsp] #; save address just above first instruction we will use
 
+    #; Syscall prep: invariant
+    xor rdi, rdi #; stdin
+    mov rdx, 1   #; n
+
     read_byte:                  #; read one byte at a time onto the stack
     dec rsp                     #; next address on stack
     lea rsi, [rsp]              #; prepare address for syscall
-    call getch                  #; writes byte from stdin to top of stack
+
+    xor rax, rax                #; sys_read
+    syscall
+
     mov al, [rsp]               #; nul-byte check the char just written
     cmp al, 0
     jne read_byte               #; loop if non-null
@@ -108,7 +115,10 @@ _start:
     cmp al, '.'
     jne case_ipt
 
-    call putch
+    mov rdx, 1 #; n
+    mov rax, 1 #; sys_write
+    mov rdi, 1 #; stdout
+    syscall    #; rsi already set
 
     jmp main_loop
 
@@ -116,7 +126,8 @@ _start:
     cmp al, ','
     jne case_fwd_z
 
-    call getch
+    mov rax, -1
+    call exit
 
     jmp main_loop
 
@@ -195,76 +206,4 @@ exit:
     mov rdi, rax
     mov rax, 60
     syscall
-    ret
-
-#; Print a char at [rsi]
-putch:
-    enter 0, 0
-    pop rdx
-    mov rdx, 1
-    call print_n
-    push rdx
-    leave
-    ret
-
-#; Print up to rdx bytes of a string from [rsi]
-print_n:
-    enter 0, 0
-    push rax
-    push rdi
-    mov rax, 1
-    mov rdi, 1
-    syscall
-    pop rdi
-    pop rax
-    leave
-    ret
-
-#; Get a char front stdin to [rsi]
-getch:
-    enter 0, 0
-    push rax
-    push rdi
-    push rdx
-    push rcx
-    xor rax, rax #; sys_read
-    xor rdi, rdi #; stdin
-    mov rdx, 1   #; n
-    syscall
-    pop rcx
-    pop rdx
-    pop rdi
-    pop rax
-    leave
-    ret
-
-#; Get the length of the string at [rsi] to rdx
-strlen:
-    enter 0, 0
-    mov rdx, 0
-    push rax
-    push rsi
-
-    strln_nz:
-    mov al, [rsi]
-    cmp al, 0
-
-    je strln_z
-
-    inc rsi
-    inc rdx
-    jmp strln_nz
-
-    strln_z:
-    pop rsi
-    pop rax
-    leave
-    ret
-
-#; Print from [rsi]
-print_null:
-    enter 0, 0
-    call strlen
-    call print_n
-    leave
     ret
