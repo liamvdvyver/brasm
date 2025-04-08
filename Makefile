@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -Wall -I$(INCLUDE)
+CFLAGS = -Wall -I$(INCLUDE)
 LD = ld
 BUILD = out
 INCLUDE = ./include/
@@ -29,3 +29,4 @@ $(INCLUDE):
 clean:
 	@rm -rf $(BUILD)
 	@rm -rf $(INCLUDE)
+	@rm brasm
