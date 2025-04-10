@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -I$(INCLUDE)
+CFLAGS = -Wall -I$(INCLUDE) -g
 LD = ld
 BUILD = out
 INCLUDE = ./include/
@@ -7,13 +7,20 @@ SRC = src
 
 default: all
 
-all: checkdirs $(INCLUDE)/sys_headers.h brasm
+all: checkdirs $(INCLUDE)sys_headers.h brasm
 
 $(BUILD)/brasm.o: $(SRC)/br.S
 	$(CC) $(CFLAGS) -o $@ -c $^
 
-$(INCLUDE)/sys_headers.h:
-	echo "#include <sys/mman.h>" | $(CC) -E - -dM > $@
+$(BUILD)/include: $(SRC)/include.c
+	$(CC) -o $@ $^
+
+$(INCLUDE)sys_headers.h: $(BUILD)/include
+	echo '#include <sys/mman.h>' | $(CC) -E - -dM > $@
+	echo '#include <sys/fcntl.h>' | $(CC) -E - -dM >> $@
+	sed -ni '/#define \(O\|MAP\)_/p' $@
+	sort -u $@ -o $@
+	$(BUILD)/include >> $@
 
 brasm: $(BUILD)/brasm.o
 	$(LD) -o $@ $^

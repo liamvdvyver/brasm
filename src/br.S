@@ -1,10 +1,12 @@
 #include "sys_headers.h"
 
+#define DEFAULT_MEM 40960
+
 .intel_syntax noprefix
 
 .data
-    newline: .asciz "\n"
-    default_mem: .int 40960
+    input_fd: .quad 0
+    input_fs: .quad 0
 
 .text
 .global _start
@@ -18,19 +20,62 @@
 
 _start:
 
-    #; If > 1 arg, treat as number of bytes for vm
-    mov rax, [rsp] #; number of commandline args
-    cmp rax, 1     #; 1 arg -> just name of program
-    je default_vm_mem
+    #; Parse args:
+    #; assume (second) arg is filename
+    mov rax, 2           #; sys_open
+    mov rdi, [rsp + 16]  #; rdi contains argv[1]
+    mov rsi, O_RDONLY
+    mov rdx, O_RDONLY
+    syscall              #; rax contains fd
+    cmp rax, 0           #; check return value
+    jl exit
+    mov [input_fd], rax
+
+    #; get filesize of argument
+    mov rdi, rax        #; rdi := input_fd
+    mov rax, 5          #; sys_fstat
+    sub rsp, STAT_SIZE  #; stack space for struct stat
+    mov rsi, rsp        #; struct stat *statbuf
+    syscall
+    cmp rax, 0
+    jne exit
+
+    #; allocate buffer for bf source
+    xor rsi, rsi
+    mov esi, [rsp + STAT_FS_OFFSET] #; rdx := filesize (bytes)
+    mov [input_fs], esi
+    mov rax, 9                      #; mmap syscall no
+    xor rdi, rdi                    #; addr = null
+    mov rdx, 0b111                  #; prot = rwx
+    mov r10, MAP_PRIVATE | MAP_ANON #; flags = map_private | map_anon
+    mov r8,  -1                     #; fd = -1
+    mov r9,  0                      #; off = 0
+    syscall                         #; now have buffer at [rax]
+    cmp rax, 0                      #; check return
+    jl exit
+
+    mov rbx, rax #; rbx setup for main loop
+    sub rsp, STAT_SIZE
+
+    #; read source into [rax]
+    mov rsi, rax        #; *buf
+    xor rax, rax        #; sys_read
+    mov rdi, [input_fd] #; fd
+    mov rdx, [input_fs] #; n
+    syscall
+    cmp rax, rdx        #; check return
+    jne exit
+
+    #; close file
+    mov rax, 3 #; sys_close
+    syscall    #; rdi already contains fd
+    cmp rax, 0 #; check return
+    jne exit
 
     read_vm_mem:
 
-    #; Read and setup vm
-
-    jmp alloc_vm
-
-    default_vm_mem:
-    mov rsi, [default_mem]
+    #; Read and setup vm (default memory)
+    mov rsi, DEFAULT_MEM
 
     #; Assume n bytes is in rsi
     #; allocate memory, and put memory pointer in rsi
@@ -46,33 +91,11 @@ _start:
     cmp rax, -1 #; check failure
     je exit
 
-    mov r8, rax #; r8 contains memory pointer to first (lowest) cell
-
-    #; We will simply read the program onto the stack
-    #; then, we execute by running in reverse order
-    push 0         #; put a nul-byte at the start of the program
-    lea rbx, [rsp] #; save address just above first instruction we will use
-
-    #; Syscall prep: invariant
-    xor rdi, rdi #; stdin
-    mov rdx, 1   #; n
-
-    read_byte:                  #; read one byte at a time onto the stack
-    dec rsp                     #; next address on stack
-    lea rsi, [rsp]              #; prepare address for syscall
-
-    xor rax, rax                #; sys_read
-    syscall
-
-    mov al, [rsp]               #; nul-byte check the char just written
-    cmp al, 0
-    jne read_byte               #; loop if non-null
-    and rsp, 0xFFFFFFFFFFFFFFF0 #; word-align stack
-
-    mov rsi, r8 #; restore data pointer
+    mov rsi, rax             #; rsi contains memory pointer to first (lowest) cell
+    dec rbx
 
     main_loop:
-    dec rbx       #; next instruction
+    inc rbx       #; next instruction
     mov al, [rbx] #; grab the current byte at the instruction pointer
 
     case_inc_ptr:
@@ -126,8 +149,10 @@ _start:
     cmp al, ','
     jne case_fwd_z
 
-    mov rax, -1
-    call exit
+    mov rdx, 1   #; n
+    xor rax, rax #; sys_write
+    mov rdi, 1   #; stdout
+    syscall      #; rsi already set
 
     jmp main_loop
 
@@ -139,7 +164,7 @@ _start:
     jnz main_loop
 
     #; find the matching ']'
-    mov rdi, -1
+    mov rdi, 1
     xor rcx, rcx
     call match_bracket
 
@@ -153,7 +178,7 @@ _start:
     jz main_loop
 
     #; find the matching '['
-    mov rdi, 1
+    mov rdi, -1
     xor rcx, rcx
     call match_bracket
 
@@ -199,7 +224,6 @@ match_bracket:
     next_pos:
     add rbx, rdi
     jmp match_bracket
-
 
 #; Exit with code rax
 exit:
