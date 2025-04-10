@@ -4,19 +4,8 @@
 
 .intel_syntax noprefix
 
-.data
-    input_fd: .quad 0
-    input_fs: .quad 0
-
 .text
 .global _start
-
-    #; We use:
-    #
-    #; * rbx as an instruction pointer
-    #; * rsi as a data pointer this way, syscalls will read/write to/from the vm memory
-    #
-    #; And for now, don't protect memory (up to the bf programmer to ensure safety)
 
 _start:
 
@@ -29,9 +18,8 @@ _start:
     syscall              #; rax contains fd
     cmp rax, 0           #; check return value
     jl exit
-    mov [input_fd], rax
 
-    #; get filesize of argument
+    # #; get filesize of argument
     mov rdi, rax        #; rdi := input_fd
     mov rax, 5          #; sys_fstat
     sub rsp, STAT_SIZE  #; stack space for struct stat
@@ -40,37 +28,20 @@ _start:
     cmp rax, 0
     jne exit
 
-    #; allocate buffer for bf source
-    xor rsi, rsi
-    mov esi, [rsp + STAT_FS_OFFSET] #; rdx := filesize (bytes)
-    mov [input_fs], esi
+    #; map source file into memory
+    mov r8,  rdi                    #; fd = input_fd
+    mov esi, [rsp + STAT_FS_OFFSET] #; rsi := filesize (bytes)
     mov rax, 9                      #; mmap syscall no
     xor rdi, rdi                    #; addr = null
-    mov rdx, 0b111                  #; prot = rwx
-    mov r10, MAP_PRIVATE | MAP_ANON #; flags = map_private | map_anon
-    mov r8,  -1                     #; fd = -1
+    mov rdx, PROT_READ              #; prot = r
+    mov r10, MAP_PRIVATE            #; flags = map_private | map_anon
     mov r9,  0                      #; off = 0
     syscall                         #; now have buffer at [rax]
     cmp rax, 0                      #; check return
     jl exit
 
-    mov rbx, rax #; rbx setup for main loop
-    sub rsp, STAT_SIZE
-
-    #; read source into [rax]
-    mov rsi, rax        #; *buf
-    xor rax, rax        #; sys_read
-    mov rdi, [input_fd] #; fd
-    mov rdx, [input_fs] #; n
-    syscall
-    cmp rax, rdx        #; check return
-    jne exit
-
-    #; close file
-    mov rax, 3 #; sys_close
-    syscall    #; rdi already contains fd
-    cmp rax, 0 #; check return
-    jne exit
+    add rsp, STAT_SIZE #; remove struct stat from stack
+    mov rbx, rax       #; rbx setup for main loop
 
     read_vm_mem:
 
@@ -82,17 +53,24 @@ _start:
     alloc_vm:
     mov rax, 9                      #; mmap syscall no
     xor rdi, rdi                    #; addr = null
-    mov rdx, 0b111                  #; prot = rwx
+    mov rdx, PROT_READ | PROT_WRITE #; prot = rwx
     mov r10, MAP_PRIVATE | MAP_ANON #; flags = map_private | map_anon
-    mov r8,  -1                     #; fd = -1
-    mov r9,  0                      #; off = 0
+    mov r8, -1                      #; fd = -1
+    xor r9, r9                      #; off = 0
     syscall
 
     cmp rax, -1 #; check failure
     je exit
 
-    mov rsi, rax             #; rsi contains memory pointer to first (lowest) cell
-    dec rbx
+    mov rsi, rax #; rsi contains memory pointer to first (lowest) cell
+    dec rbx      #; instruction pointer incremented at start of loop
+
+    #; We use:
+    #;
+    #; * rbx as an instruction pointer
+    #; * rsi as a data pointer this way, syscalls will read/write to/from the vm memory
+    #;
+    #; And for now, don't protect memory (up to the bf programmer to ensure safety)
 
     main_loop:
     inc rbx       #; next instruction
