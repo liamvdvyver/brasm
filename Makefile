@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -I$(INCLUDE) -g
+CFLAGS = -Wall -I$(INCLUDE)
 LD = ld
 BUILD = out
 INCLUDE = ./include/
