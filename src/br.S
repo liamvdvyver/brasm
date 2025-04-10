@@ -13,10 +13,10 @@ _start:
     #; assume (second) arg is filename
     mov rax, 2           #; sys_open
     mov rdi, [rsp + 16]  #; rdi contains argv[1]
-    mov rsi, O_RDONLY
-    mov rdx, O_RDONLY
+    mov rsi, O_RDONLY    #; flags
+    mov rdx, O_RDONLY    #; mode
     syscall              #; rax contains fd
-    cmp rax, 0           #; check return value
+    test rax, rax
     jl exit
 
     # #; get filesize of argument
@@ -25,19 +25,19 @@ _start:
     sub rsp, STAT_SIZE  #; stack space for struct stat
     mov rsi, rsp        #; struct stat *statbuf
     syscall
-    cmp rax, 0
+    test rax, rax
     jne exit
 
     #; map source file into memory
-    mov r8,  rdi                    #; fd = input_fd
+    mov r8,  rdi                    #; fd := source
     mov esi, [rsp + STAT_FS_OFFSET] #; rsi := filesize (bytes)
-    mov rax, 9                      #; mmap syscall no
-    xor rdi, rdi                    #; addr = null
-    mov rdx, PROT_READ              #; prot = r
-    mov r10, MAP_PRIVATE            #; flags = map_private | map_anon
-    mov r9,  0                      #; off = 0
+    mov rax, 9                      #; sys_mmap
+    xor rdi, rdi                    #; addr
+    mov rdx, PROT_READ              #; prot
+    mov r10, MAP_PRIVATE            #; flags
+    xor r9, r9                      #; offset
     syscall                         #; now have buffer at [rax]
-    cmp rax, 0                      #; check return
+    test rax, rax
     jl exit
 
     add rsp, STAT_SIZE #; remove struct stat from stack
@@ -51,13 +51,11 @@ _start:
     #; Assume n bytes is in rsi
     #; allocate memory, and put memory pointer in rsi
     alloc_vm:
-    mov rax, 9                      #; mmap syscall no
-    xor rdi, rdi                    #; addr = null
-    mov rdx, PROT_READ | PROT_WRITE #; prot = rwx
-    mov r10, MAP_PRIVATE | MAP_ANON #; flags = map_private | map_anon
-    mov r8, -1                      #; fd = -1
-    xor r9, r9                      #; off = 0
-    syscall
+    mov rax, 9                      #; sys_mmap
+    mov rdx, PROT_READ | PROT_WRITE #; prot
+    mov r10, MAP_PRIVATE | MAP_ANON #; flags
+    mov r8, -1                      #; fd
+    syscall                         #; rsi, r9, rdi already set
 
     cmp rax, -1 #; check failure
     je exit
@@ -138,7 +136,7 @@ _start:
     cmp al, '['
     jne case_bwd_nz
     mov al, [rsi]
-    cmp al, 0
+    test al, al
     jnz main_loop
 
     #; find the matching ']'
@@ -152,7 +150,7 @@ _start:
     cmp al, ']'
     jne case_nul
     mov al, [rsi]
-    cmp al, 0
+    test al, al
     jz main_loop
 
     #; find the matching '['
@@ -163,7 +161,7 @@ _start:
     jmp main_loop
 
     case_nul:
-    cmp al, 0
+    test al, al
     jne case_default
 
     xor rax, rax
@@ -195,7 +193,7 @@ match_bracket:
     dec rcx
 
     check_ret:
-    cmp rcx, 0
+    test rcx, rcx
     jne next_pos
     ret
 
